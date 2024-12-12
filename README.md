@@ -11,6 +11,22 @@ This is similar to projects like [lazywarden](https://github.com/querylab/lazywa
 - 🛑 No scheduler. You may setup cron or similar to trigger the script regularly.
 - 🛑 No alternative login methods. Just API-key + Password.
 
+# Usage
+
+## With docker compose
+
+- Download `docker-compose.yml` from this repository
+- Edit environment variables
+- Run `docker compose up`
+
+## Without docker
+
+- Clone repository `git clone https://github.com/genericFJS/vaultwarden2keepass.git`
+- Rename `.env.example` to `.env` and change variables
+- Open a console in the cloned repository
+- Run `npm install` or `pnpm install` once
+- Run `npm run start:env` or `pnpm start:env` whenever you want to create a backup
+
 # Configuration
 
 Use the following environment variables to configure the script:
@@ -18,8 +34,8 @@ Use the following environment variables to configure the script:
 | variable                                | default                  | mandatory | notes                                                                                              |
 | --------------------------------------- | ------------------------ | --------- | -------------------------------------------------------------------------------------------------- |
 | `URL`                                   | -                        | x         | use the url to your bitwarden/vaultwarden instance                                                 |
-| `BW_CLIENTID`                           | -                        | x         | see https://bitwarden.com/help/personal-api-key/                                                   |
-| `BW_CLIENTSECRET`                       | -                        | x         | see https://bitwarden.com/help/personal-api-key/                                                   |
+| `BW_CLIENTID`                           | -                        | x         | see [personal api key](https://bitwarden.com/help/personal-api-key/)                               |
+| `BW_CLIENTSECRET`                       | -                        | x         | see [personal api key](https://bitwarden.com/help/personal-api-key/)                               |
 | `BW_PASSWORD` <sup>\*</sup>             | -                        | x         | password to your bitwarden/vaultwarden account (base64-encoded)                                    |
 | `KEEPASS_BACKUP_PASSWORD` <sup>\*</sup> | _[same as BW_PASSWORD]_  |           | password for the KeePass database (base64-encoded)                                                 |
 | `ATTACHMENT_TEMP_FOLDER`                | ./attachmentBackup       |           | directory where attachments are temporarily stored (recommendation: use `/tmp` for linux machines) |
@@ -30,16 +46,3 @@ Use the following environment variables to configure the script:
 | `ORGANIZATIONS_GROUP_NAME`              | Organizations            |           | name of the KeePass group where organizations and its items should be stored                       |
 
 \*: In most cases these environment variables are stored in plain text. That means they can easily be read. To make this _somewhat_ more secure and conceal them on first sight, your passwords have to be base64-encoded. To encode your password in base64 use some (online) tool of your choice or just open the developer tools console in any browser (usually via F12) and use the output of `btoa("your_password")`.
-
-## docker compose
-
-- Download `docker-compose.yml` from this repository
-- Edit environment variables
-- Run `docker compose up`
-
-## Without docker
-
-- Clone repository `git clone TBD`
-- Rename `.env.example` to `.env` and change variables
-- Run `npm install` or `pnpm install` once
-- Run `npm run start:env` or `pnpm start:env` whenever you want to create a backup

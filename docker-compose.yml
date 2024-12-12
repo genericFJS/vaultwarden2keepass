@@ -1,7 +1,7 @@
 services:
   vaultwarden2keepass:
     container_name: vaultwarden2keepass
-    build: https://github.com/TBD
+    build: https://github.com/genericFJS/vaultwarden2keepass.git
     command: npm run start
     volumes:
       - './backup:/app/backup'
