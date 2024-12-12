@@ -46,3 +46,5 @@ Use the following environment variables to configure the script:
 | `ORGANIZATIONS_GROUP_NAME`              | Organizations            |           | name of the KeePass group where organizations and its items should be stored                       |
 
 \*: In most cases these environment variables are stored in plain text. That means they can easily be read. To make this _somewhat_ more secure and conceal them on first sight, your passwords have to be base64-encoded. To encode your password in base64 use some (online) tool of your choice or just open the developer tools console in any browser (usually via F12) and use the output of `btoa("your_password")`.
+
+Depending how you use this script (preferably in your local network), you may access your self-hosted vaultwarden/bitwarden server with a self signed certificate. In this case just set the node environment variable which disables certificate checking: `NODE_TLS_REJECT_UNAUTHORIZED=0`.

@@ -130,7 +130,7 @@ export class BitwardenExtractor {
   }
 
   /**
-   * Get Bitwarden data vie the bitwarden cli.
+   * Get Bitwarden data via the bitwarden cli.
    * Since `bw export` does not export everything, the `bw list` commands are used.
    *
    * @returns Bitwarden data containing items, folders, collections, organizations and attachments.

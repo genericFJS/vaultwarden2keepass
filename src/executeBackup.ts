@@ -16,9 +16,6 @@ function ensureParameter(parameter: string, explanation: string) {
 }
 
 export async function executeBackup() {
-  // ignore self-signed certificates
-  // process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '0';
-
   // ================ GET PARAMETERS ================
   const url = ensureParameter('URL', 'Need url of Bitwarden/Vaultwarden instance');
   ensureParameter(
