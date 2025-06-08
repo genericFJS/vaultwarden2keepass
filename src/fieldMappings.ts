@@ -100,7 +100,9 @@ export const fieldMappings = {
     totp: {
       field: 'otp',
       transformation: (value, item) =>
-        `otpauth://totp/${encodeURIComponent(item.login.username ?? 'unknown')}?secret=${value}&issuer=${encodeURIComponent(item.name)}`,
+        value.startsWith('otpauth://totp/')
+          ? value
+          : `otpauth://totp/${encodeURIComponent(item.login.username ?? 'unknown')}?secret=${value}&issuer=${encodeURIComponent(item.name)}`,
     },
     passwordRevisionDate: undefined,
   } satisfies MappingRecord<Login, LoginItem> as MappingRecord<Login, LoginItem>,
