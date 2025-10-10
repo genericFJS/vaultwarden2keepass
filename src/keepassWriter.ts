@@ -13,17 +13,21 @@ import { mkdirSync, writeFileSync } from 'fs';
 import type { KdbxEntry } from 'kdbxweb';
 import { join, resolve } from 'path';
 
+type Args = {
+  name: string;
+  password: string;
+  keyFile?: Uint8Array;
+  organizationsFolderName: string;
+};
+
 export class KeePassWriter {
-  private db: Kdbx;
+  private db!: Kdbx;
+  private organizationsFolderName!: string;
 
-  constructor(
-    name: string,
-    password: string,
-    private organizationsFolderName: string,
-  ) {
-    const credentials = new Credentials(ProtectedValue.fromString(password));
-
-    this.db = Kdbx.create(credentials, name);
+  constructor(args: Args) {
+    const credentials = new Credentials(ProtectedValue.fromString(args.password), args.keyFile);
+    this.organizationsFolderName = args.organizationsFolderName;
+    this.db = Kdbx.create(credentials, args.name);
     this.db.createDefaultGroup();
   }
 

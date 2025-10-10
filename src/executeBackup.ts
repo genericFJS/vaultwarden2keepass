@@ -1,3 +1,4 @@
+import fs from 'fs';
 import { BitwardenExtractor } from './bitwardenExtractor';
 import { KeePassWriter } from './keepassWriter';
 
@@ -44,6 +45,10 @@ export async function executeBackup() {
     process.env['KEEPASS_BACKUP_FILE_NAME'] || DEFAULTS.KEEPASS_BACKUP_FILE_NAME;
   const backupDatabaseName = process.env['KEEPASS_BACKUP_DATABASE_NAME'] || backupFileName;
 
+  const backupKeyFile = process.env['KEEPASS_BACKUP_KEYFILE_PATH']
+    ? fs.readFileSync(process.env['KEEPASS_BACKUP_KEYFILE_PATH'])
+    : undefined;
+
   const organizationsFolderName =
     process.env['ORGANIZATIONS_GROUP_NAME'] || DEFAULTS.ORGANIZATIONS_GROUP_NAME;
 
@@ -55,11 +60,12 @@ export async function executeBackup() {
   const bitwardenExtractor = new BitwardenExtractor(url, attachmentTempFolder, maxAttachmentBytes);
   const bitwardenData = await bitwardenExtractor.getBitwardenData();
 
-  const keepassWriter = new KeePassWriter(
-    keepassDatabaseName,
-    backupPassword,
+  const keepassWriter = new KeePassWriter({
+    name: keepassDatabaseName,
+    keyFile: backupKeyFile,
+    password: backupPassword,
     organizationsFolderName,
-  );
+  });
   await keepassWriter.fillDatabaseWithBitwardenData(bitwardenData);
   await keepassWriter.writeDatabase(backupPath, keepassFileName);
 
