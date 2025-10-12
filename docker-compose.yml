@@ -16,6 +16,7 @@ services:
 
       # Optional
       - 'KEEPASS_BACKUP_PASSWORD=VHIwdWI0ZG9yJjM='
+      - 'KEEPASS_BACKUP_KEYFILE_PATH=/path/to/keyfile.keyx'
       - 'ATTACHMENT_TEMP_FOLDER=/tmp'
       - 'MAX_ATTACHMENT_BYTES=100000'
       - 'KEEPASS_BACKUP_PATH=./backup'
