@@ -13,18 +13,58 @@ import { mkdirSync, writeFileSync } from 'fs';
 import type { KdbxEntry } from 'kdbxweb';
 import { join, resolve } from 'path';
 
+type KeePassWriterArgs = {
+  name: string;
+  password?: string;
+  keyFile?: Uint8Array;
+  organizationsFolderName: string;
+};
+
 export class KeePassWriter {
   private db: Kdbx;
+  private organizationsFolderName!: string;
 
-  constructor(
-    name: string,
-    password: string,
-    private organizationsFolderName: string,
-  ) {
-    const credentials = new Credentials(ProtectedValue.fromString(password));
-
+  constructor({ name, password, keyFile, organizationsFolderName }: KeePassWriterArgs) {
+    const credentials = this.createKbdxCredentials(password, keyFile);
+    this.organizationsFolderName = organizationsFolderName;
     this.db = Kdbx.create(credentials, name);
     this.db.createDefaultGroup();
+  }
+
+  /**
+   * Creates KeePass credentials (`Credentials` object) based on provided password and/or key file.
+   *
+   * @private
+   * @param [password] - The master password to secure the KeePass database. Optional.
+   * @param [keyFile] - The binary key file data used for authentication. Optional.
+   * @returns  A `KbdxCredentials` instance initialized with the given password and/or key file.
+   *
+   * @throws Throws an error if neither `password` nor `keyFile` is provided.
+   *
+   * @example
+   * // Using both password and key file
+   * const creds = createKbdxCredentials('secret', keyFileData);
+   *
+   * // Using only password
+   * const creds = createKbdxCredentials('secret');
+   *
+   * // Using only key file
+   * const creds = createKbdxCredentials(undefined, keyFileData);
+   */
+  private createKbdxCredentials(password?: string, keyFile?: Uint8Array) {
+    if (password && keyFile) {
+      console.log('🛈  Using both password and key file for KeePass encryption.');
+      return new Credentials(ProtectedValue.fromString(password), keyFile);
+    }
+    if (password) {
+      console.log('🛈  Using only password for KeePass encryption.');
+      return new Credentials(ProtectedValue.fromString(password));
+    }
+    if (keyFile) {
+      console.log('🛈  Using only key file for KeePass encryption.');
+      return new Credentials(null, keyFile);
+    }
+    throw new Error('Invalid credentials: must provide a password, a key file, or both.');
   }
 
   /**
@@ -49,7 +89,7 @@ export class KeePassWriter {
       this.organizationsFolderName = `${originalOrganizationsFolder}_${i}`;
     }
 
-    console.log('⏱️ Adding folders and collections as groups');
+    console.log('⏱️  Adding folders and collections as groups');
     // add folders
     let groups = this.addGroups(this.db.getDefaultGroup(), bitwarden.folders);
 
@@ -70,7 +110,7 @@ export class KeePassWriter {
       }
     }
 
-    console.log('⏱️ Adding items as entries');
+    console.log('⏱️  Adding items as entries');
     const noFolder = bitwarden.folders.find((f) => !f.id);
     // add items
     for (const item of bitwarden.items) {

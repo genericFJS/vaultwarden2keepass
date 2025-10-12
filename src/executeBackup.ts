@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs';
 import { BitwardenExtractor } from './bitwardenExtractor';
 import { KeePassWriter } from './keepassWriter';
 
@@ -29,9 +30,22 @@ export async function executeBackup() {
   ensureParameter('BW_PASSWORD', 'Need password to unlock vault');
   process.env['BW_PASSWORD'] = atob(process.env['BW_PASSWORD']!);
 
-  const backupPassword = process.env['KEEPASS_BACKUP_PASSWORD']
-    ? atob(process.env['KEEPASS_BACKUP_PASSWORD'])
-    : process.env['BW_PASSWORD']!;
+  let backupKeyFile: Buffer | undefined;
+
+  try {
+    const keyFilePath = process.env['KEEPASS_BACKUP_KEYFILE_PATH'];
+    backupKeyFile = keyFilePath ? readFileSync(keyFilePath) : undefined;
+  } catch (err) {
+    console.error(`⚠️  Skipped reading KEEPASS_BACKUP_KEYFILE_PATH -`, (err as Error).toString());
+  }
+
+  let backupPassword = atob(process.env['KEEPASS_BACKUP_PASSWORD'] || '');
+
+  // Fallback to decoded BW_PASSWORD if no key file or backup password.
+  if (!backupKeyFile && !backupPassword) {
+    console.log('🛈  Will use BW_PASSWORD as KeePass backup password');
+    backupPassword = process.env['BW_PASSWORD'];
+  }
 
   const attachmentTempFolder =
     process.env['ATTACHMENT_TEMP_FOLDER'] || DEFAULTS.ATTACHMENT_TEMP_FOLDER;
@@ -55,11 +69,12 @@ export async function executeBackup() {
   const bitwardenExtractor = new BitwardenExtractor(url, attachmentTempFolder, maxAttachmentBytes);
   const bitwardenData = await bitwardenExtractor.getBitwardenData();
 
-  const keepassWriter = new KeePassWriter(
-    keepassDatabaseName,
-    backupPassword,
+  const keepassWriter = new KeePassWriter({
+    name: keepassDatabaseName,
+    keyFile: backupKeyFile,
+    password: backupPassword,
     organizationsFolderName,
-  );
+  });
   await keepassWriter.fillDatabaseWithBitwardenData(bitwardenData);
   await keepassWriter.writeDatabase(backupPath, keepassFileName);
 
