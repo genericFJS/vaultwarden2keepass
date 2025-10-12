@@ -75,13 +75,13 @@ export class KeePassWriter {
     // add items
     for (const item of bitwarden.items) {
       // get all group and all collections of item
-      const groupsOfItem =
-        /* implicitly no folder/collection */ (!item.folderId && item.collectionIds.length === 0) ||
-        /* explicitly no folder */ item.folderId === noFolder?.id
-          ? [this.db.getDefaultGroup()]
-          : [item.folderId, ...item.collectionIds]
-              .filter((v) => v !== undefined)
-              .map((id) => groups[id]);
+      const groupsOfItem = [item.folderId, ...item.collectionIds]
+        .filter((v) => v != null)
+        .map((id) => groups[id]);
+
+      if (groupsOfItem.length === 0) {
+        groupsOfItem.push(this.db.getDefaultGroup());
+      }
 
       // Add entry to each group
       for (const group of groupsOfItem) {
