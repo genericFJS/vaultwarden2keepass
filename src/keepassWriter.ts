@@ -1,5 +1,8 @@
+import { mkdirSync, writeFileSync } from 'fs';
+import type { KdbxEntry } from 'kdbxweb';
+import { join, resolve } from 'path';
+import type { Item, Organization } from './bitwardenCliTypes';
 import type { BitwardenData } from './bitwardenExtractor';
-import type { Collection, Folder, Item } from './bitwardenCliTypes';
 import { fieldMappings } from './fieldMappings';
 import {
   getMapping,
@@ -9,24 +12,29 @@ import {
   type MappingRecord,
 } from './fieldMappingsUtil';
 import { Credentials, Kdbx, ProtectedValue, type KdbxGroup } from './kdbxweb';
-import { mkdirSync, writeFileSync } from 'fs';
-import type { KdbxEntry } from 'kdbxweb';
-import { join, resolve } from 'path';
+
+type OrganizationFolderNames = {
+  organizations: string;
+  folders: string;
+  collections: string;
+};
 
 type KeePassWriterArgs = {
   name: string;
   password?: string;
   keyFile?: Uint8Array;
-  organizationsFolderName: string;
+  organizationFolderNames: OrganizationFolderNames;
 };
 
 export class KeePassWriter {
   private db: Kdbx;
-  private organizationsFolderName!: string;
+  private organizationFolderNames!: OrganizationFolderNames;
+  private allGroupPaths!: string[];
+  private readonly groups: Record<string, KdbxGroup> = {};
 
-  constructor({ name, password, keyFile, organizationsFolderName }: KeePassWriterArgs) {
+  constructor({ name, password, keyFile, organizationFolderNames }: KeePassWriterArgs) {
     const credentials = this.createKbdxCredentials(password, keyFile);
-    this.organizationsFolderName = organizationsFolderName;
+    this.organizationFolderNames = organizationFolderNames;
     this.db = Kdbx.create(credentials, name);
     this.db.createDefaultGroup();
   }
@@ -75,52 +83,106 @@ export class KeePassWriter {
   async fillDatabaseWithBitwardenData(bitwarden: BitwardenData) {
     console.log('💻 Filling KeePass database with bitwarden data');
     // Transform organizations folder name so there are no collisions with existing folders
-    const allRootFolders = new Set([
-      ...bitwarden.folders.map((f) => KeePassWriter.getSubfolders(bitwarden.folders, f.name)[0]),
-      ...bitwarden.collections.map(
-        (c) => KeePassWriter.getSubfolders(bitwarden.collections, c.name)[0],
+    const allRootFolders = new Set(
+      bitwarden.folders.map(
+        (f) =>
+          KeePassWriter.getSubfolders(
+            bitwarden.folders.map((f) => f.name),
+            f.name,
+          )[0],
       ),
-    ]);
-    const originalOrganizationsFolder = this.organizationsFolderName;
-    if (allRootFolders.has(this.organizationsFolderName)) {
-      this.organizationsFolderName = `Bitwarden${originalOrganizationsFolder}`;
+    );
+    const originalOrganizationsFolder = this.organizationFolderNames.organizations;
+    if (allRootFolders.has(originalOrganizationsFolder)) {
+      this.organizationFolderNames.organizations = `Bitwarden${originalOrganizationsFolder}`;
     }
-    for (let i = 0; allRootFolders.has(this.organizationsFolderName); i++) {
-      this.organizationsFolderName = `${originalOrganizationsFolder}_${i}`;
+    for (let i = 0; allRootFolders.has(this.organizationFolderNames.organizations); i++) {
+      this.organizationFolderNames.organizations = `${originalOrganizationsFolder}_${i}`;
     }
+
+    // folders, collections and organizations by id for easy access
+    const pathsById = [...bitwarden.folders, ...bitwarden.collections].reduce<
+      Record<string, string>
+    >((partial, { id, name }) => {
+      if (id != undefined) partial[id] = name;
+      return partial;
+    }, {});
+    const noFolderName = bitwarden.folders.filter((f) => !f.id)![0].name;
+    const organizations = bitwarden.organizations.reduce<Record<string, Organization>>(
+      (partial, o) => ({ ...partial, [o.id]: o }),
+      {},
+    );
 
     console.log('⏱️  Adding folders and collections as groups');
-    // add folders
-    let groups = this.addGroups(this.db.getDefaultGroup(), bitwarden.folders);
-
-    // add organizations/collections
-    if (bitwarden.organizations.length > 0) {
-      const organizationsGroup = this.db.createGroup(
-        this.db.getDefaultGroup(),
-        this.organizationsFolderName,
-      );
-      for (const organization of bitwarden.organizations) {
-        const organizationGroup = this.db.createGroup(organizationsGroup, organization.name);
-        const collections = bitwarden.collections.filter(
-          (c) => c.organizationId === organization.id,
+    // collect all group paths first, so that the group order is dictated by the group name instead of the item name
+    const groupPaths = new Set<string>();
+    for (const item of bitwarden.items) {
+      if (!item.organizationId) {
+        if (item.folderId) groupPaths.add(pathsById[item.folderId]);
+      } else {
+        groupPaths.add(this.organizationFolderNames.organizations);
+        groupPaths.add(this.groupPathForOrganization(organizations[item.organizationId]));
+        groupPaths.add(this.groupPathForOrganization(organizations[item.organizationId], 'folder'));
+        groupPaths.add(
+          this.groupPathForOrganization(
+            organizations[item.organizationId],
+            'folder',
+            item.folderId ? pathsById[item.folderId] : noFolderName,
+          ),
         );
-        if (collections.length > 0) {
-          groups = { ...groups, ...this.addGroups(organizationGroup, collections) };
+        for (const collectionId of item.collectionIds) {
+          groupPaths.add(
+            this.groupPathForOrganization(organizations[item.organizationId], 'collection'),
+          );
+          groupPaths.add(
+            this.groupPathForOrganization(
+              organizations[item.organizationId],
+              'collection',
+              pathsById[collectionId],
+            ),
+          );
         }
       }
     }
 
+    this.allGroupPaths = [...groupPaths];
+
+    for (const groupPath of [...groupPaths].toSorted((a, b) =>
+      a === this.organizationFolderNames.organizations ? 1 : a.localeCompare(b),
+    )) {
+      this.createGroupRecursive(groupPath);
+    }
+
     console.log('⏱️  Adding items as entries');
-    const noFolder = bitwarden.folders.find((f) => !f.id);
     // add items
     for (const item of bitwarden.items) {
       // get all group and all collections of item
-      const groupsOfItem = [item.folderId, ...item.collectionIds]
-        .filter((v) => v != null)
-        .map((id) => groups[id]);
-
-      if (groupsOfItem.length === 0) {
-        groupsOfItem.push(this.db.getDefaultGroup());
+      const groupsOfItem: KdbxGroup[] = [];
+      if (!item.organizationId) {
+        groupsOfItem.push(
+          item.folderId ? this.groups[pathsById[item.folderId]] : this.db.getDefaultGroup(),
+        );
+      } else {
+        groupsOfItem.push(
+          this.groups[
+            this.groupPathForOrganization(
+              organizations[item.organizationId],
+              'folder',
+              item.folderId ? pathsById[item.folderId] : noFolderName,
+            )
+          ],
+        );
+        for (const collectionId of item.collectionIds) {
+          groupsOfItem.push(
+            this.groups[
+              this.groupPathForOrganization(
+                organizations[item.organizationId],
+                'collection',
+                pathsById[collectionId],
+              )
+            ],
+          );
+        }
       }
 
       // Add entry to each group
@@ -226,10 +288,10 @@ export class KeePassWriter {
    * @param folderOrPath Folder name to find subfolders of.
    * @returns Subfolders for folder name.
    */
-  static getSubfolders(folders: (Folder | Collection)[], folderOrPath: string) {
+  static getSubfolders(folders: string[], folderOrPath: string) {
     const subfolders: string[] = [];
 
-    const allFolders = new Set(folders.map((f) => f.name));
+    const allFolders = new Set(folders);
     const potentialSubfolders = folderOrPath.split('/');
 
     const path: string[] = [];
@@ -248,33 +310,41 @@ export class KeePassWriter {
   }
 
   /**
-   * Adds folders/groups to KeePass database.
+   * Assembles a path for an organization, its folder or collection.
    *
-   * @param root Root KeePass-group to add (sub-)groups to.
-   * @param folders Bitwarden folders to add as groups.
-   * @returns Record of bitwarden folder ids with corresponding KeePass groups.
+   * @param organization The organization the path belongs to.
+   * @param path The path itself.
+   * @param type If the path is a folder or a collection.
+   * @returns Complete path as it should be added as a group.
    */
-  private addGroups(root: KdbxGroup, folders?: (Folder | Collection)[]): Record<string, KdbxGroup> {
-    if (!folders) return {};
-    return folders.reduce(
-      (partial, { id, name }) => {
-        if (id == null) return partial;
-        const subfolders = KeePassWriter.getSubfolders(folders, name);
-
-        let parent = root;
-        for (const folder of subfolders) {
-          const availableParent = [...parent.allGroups()].find((g) => g.name === folder);
-          if (!availableParent) {
-            parent = this.db.createGroup(parent, folder);
-          } else {
-            parent = availableParent;
-          }
-        }
-        partial[id] = parent;
-        return partial;
-      },
-      {} as Record<string, KdbxGroup>,
+  private groupPathForOrganization(
+    organization: Organization,
+    type?: 'folder' | 'collection',
+    path?: string,
+  ) {
+    return (
+      `${this.organizationFolderNames.organizations}/${organization.name}` +
+      (type ? `/${this.organizationFolderNames[`${type}s`]}` + (path ? `/${path}` : '') : '')
     );
+  }
+
+  /**
+   * Creates a Keepass group based on a path. If the path contains subfolders, they are created recursively.
+   *
+   * @param path Path to create a group for.
+   * @returns The created group.
+   */
+  private createGroupRecursive(path: string): KdbxGroup {
+    const subfolders = KeePassWriter.getSubfolders(this.allGroupPaths, path);
+    const folder = subfolders.at(-1)!;
+    const parent =
+      subfolders.length === 1
+        ? this.db.getDefaultGroup()
+        : this.createGroupRecursive(subfolders.slice(0, -1).join('/'));
+
+    if (!(path in this.groups)) this.groups[path] = this.db.createGroup(parent, folder);
+
+    return this.groups[path];
   }
 
   /**

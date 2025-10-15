@@ -8,7 +8,9 @@ const DEFAULTS = {
   KEEPASS_BACKUP_PATH: './backup',
   KEEPASS_BACKUP_FILE_NAME: 'BitwardenBackup_%date%',
   ORGANIZATIONS_GROUP_NAME: 'Organizations',
-};
+  ORGANIZATION_FOLDERS_NAME: 'Folders',
+  ORGANIZATION_COLLECTIONS_NAME: 'Collections',
+} as const;
 
 function ensureParameter(parameter: string, explanation: string) {
   const value = process.env[parameter];
@@ -58,8 +60,13 @@ export async function executeBackup() {
     process.env['KEEPASS_BACKUP_FILE_NAME'] || DEFAULTS.KEEPASS_BACKUP_FILE_NAME;
   const backupDatabaseName = process.env['KEEPASS_BACKUP_DATABASE_NAME'] || backupFileName;
 
-  const organizationsFolderName =
+  const organizationsRootName =
     process.env['ORGANIZATIONS_GROUP_NAME'] || DEFAULTS.ORGANIZATIONS_GROUP_NAME;
+
+  const organizationsFoldersName =
+    process.env['ORGANIZATION_FOLDERS_NAME'] || DEFAULTS.ORGANIZATION_FOLDERS_NAME;
+  const organizationsCollectionsName =
+    process.env['ORGANIZATION_COLLECTIONS_NAME'] || DEFAULTS.ORGANIZATION_COLLECTIONS_NAME;
 
   // ================ DO BACKUP ================
   const backupDate = new Date().toISOString().slice(0, -5).replaceAll(':', '-');
@@ -68,15 +75,18 @@ export async function executeBackup() {
 
   const bitwardenExtractor = new BitwardenExtractor(url, attachmentTempFolder, maxAttachmentBytes);
   const bitwardenData = await bitwardenExtractor.getBitwardenData();
+  bitwardenExtractor.logout();
 
   const keepassWriter = new KeePassWriter({
     name: keepassDatabaseName,
     keyFile: backupKeyFile,
     password: backupPassword,
-    organizationsFolderName,
+    organizationFolderNames: {
+      organizations: organizationsRootName,
+      collections: organizationsCollectionsName,
+      folders: organizationsFoldersName,
+    },
   });
   await keepassWriter.fillDatabaseWithBitwardenData(bitwardenData);
   await keepassWriter.writeDatabase(backupPath, keepassFileName);
-
-  bitwardenExtractor.logout();
 }
