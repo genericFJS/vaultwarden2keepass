@@ -9,14 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Organization entries are saved differently in the keepass file.
+- Organization items are saved differently in the keepass file.
   - Organizations no longer have each collection as direct keepass group children (and no folders; see fix below).
   - Organizations now have a keepass group for folders and collections; in these groups the folders and collections are created as keepass groups.
   - This resembles the structure how it is presented in vaultwarden.
 
 ### Fixed
 
-- Organization entries appearing in the folders outside of the organization.
+- Organization items appearing in the folders outside of the organization.
 
 ## 1.1.0
 
