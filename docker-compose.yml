@@ -23,5 +23,6 @@ services:
       - "KEEPASS_BACKUP_FILE_NAME=BitwardenBackup"
       - "KEEPASS_BACKUP_DATABASE_NAME=BitwardenBackup_%date%"
       - "ORGANIZATIONS_GROUP_NAME=Organizations"
+      - "ORGANIZATION_MODE=flat"
       - "ORGANIZATION_FOLDERS_NAME=Folders"
       - "ORGANIZATION_COLLECTIONS_NAME=Collections"

@@ -13,6 +13,8 @@ import {
 } from './fieldMappingsUtil';
 import { Credentials, Kdbx, ProtectedValue, type KdbxGroup } from './kdbxweb';
 
+type OrganizationMode = 'flat' | 'nested';
+
 type OrganizationFolderNames = {
   organizations: string;
   folders: string;
@@ -23,17 +25,26 @@ type KeePassWriterArgs = {
   name: string;
   password?: string;
   keyFile?: Uint8Array;
+  organizationMode: OrganizationMode;
   organizationFolderNames: OrganizationFolderNames;
 };
 
 export class KeePassWriter {
   private db: Kdbx;
-  private organizationFolderNames!: OrganizationFolderNames;
+  private organizationMode: OrganizationMode;
+  private organizationFolderNames: OrganizationFolderNames;
   private allGroupPaths!: string[];
   private readonly groups: Record<string, KdbxGroup> = {};
 
-  constructor({ name, password, keyFile, organizationFolderNames }: KeePassWriterArgs) {
+  constructor({
+    name,
+    password,
+    keyFile,
+    organizationMode,
+    organizationFolderNames,
+  }: KeePassWriterArgs) {
     const credentials = this.createKbdxCredentials(password, keyFile);
+    this.organizationMode = organizationMode;
     this.organizationFolderNames = organizationFolderNames;
     this.db = Kdbx.create(credentials, name);
     this.db.createDefaultGroup();
@@ -122,25 +133,29 @@ export class KeePassWriter {
       } else {
         groupPaths.add(this.organizationFolderNames.organizations);
         groupPaths.add(this.groupPathForOrganization(organizations[item.organizationId]));
-        groupPaths.add(this.groupPathForOrganization(organizations[item.organizationId], 'folder'));
-        groupPaths.add(
-          this.groupPathForOrganization(
-            organizations[item.organizationId],
-            'folder',
-            item.folderId ? pathsById[item.folderId] : noFolderName,
-          ),
-        );
-        for (const collectionId of item.collectionIds) {
+        if (this.organizationMode === 'nested') {
           groupPaths.add(
-            this.groupPathForOrganization(organizations[item.organizationId], 'collection'),
+            this.groupPathForOrganization(organizations[item.organizationId], 'folder'),
           );
           groupPaths.add(
             this.groupPathForOrganization(
               organizations[item.organizationId],
-              'collection',
-              pathsById[collectionId],
+              'folder',
+              item.folderId ? pathsById[item.folderId] : noFolderName,
             ),
           );
+          for (const collectionId of item.collectionIds) {
+            groupPaths.add(
+              this.groupPathForOrganization(organizations[item.organizationId], 'collection'),
+            );
+            groupPaths.add(
+              this.groupPathForOrganization(
+                organizations[item.organizationId],
+                'collection',
+                pathsById[collectionId],
+              ),
+            );
+          }
         }
       }
     }
@@ -163,24 +178,30 @@ export class KeePassWriter {
           item.folderId ? this.groups[pathsById[item.folderId]] : this.db.getDefaultGroup(),
         );
       } else {
-        groupsOfItem.push(
-          this.groups[
-            this.groupPathForOrganization(
-              organizations[item.organizationId],
-              'folder',
-              item.folderId ? pathsById[item.folderId] : noFolderName,
-            )
-          ],
-        );
-        for (const collectionId of item.collectionIds) {
+        if (this.organizationMode === 'nested') {
           groupsOfItem.push(
             this.groups[
               this.groupPathForOrganization(
                 organizations[item.organizationId],
-                'collection',
-                pathsById[collectionId],
+                'folder',
+                item.folderId ? pathsById[item.folderId] : noFolderName,
               )
             ],
+          );
+          for (const collectionId of item.collectionIds) {
+            groupsOfItem.push(
+              this.groups[
+                this.groupPathForOrganization(
+                  organizations[item.organizationId],
+                  'collection',
+                  pathsById[collectionId],
+                )
+              ],
+            );
+          }
+        } else {
+          groupsOfItem.push(
+            this.groups[this.groupPathForOrganization(organizations[item.organizationId])],
           );
         }
       }
@@ -239,6 +260,19 @@ export class KeePassWriter {
           entry.tags.push('SecureNote');
 
           this.addFields(entry, item.secureNote, item, fieldMappings.secureNote);
+        }
+
+        // folder/collection for flat organization mode
+        if (item.organizationId && this.organizationMode === 'flat') {
+          if (item.folderId) {
+            entry.fields.set('Folder', pathsById[item.folderId]);
+          }
+          for (const [index, collectionId] of item.collectionIds.entries()) {
+            entry.fields.set(
+              'Collection' + (item.collectionIds.length === 1 ? '' : `_${index}`),
+              pathsById[collectionId],
+            );
+          }
         }
       }
     }

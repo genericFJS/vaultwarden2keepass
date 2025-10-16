@@ -8,6 +8,7 @@ const DEFAULTS = {
   KEEPASS_BACKUP_PATH: './backup',
   KEEPASS_BACKUP_FILE_NAME: 'BitwardenBackup_%date%',
   ORGANIZATIONS_GROUP_NAME: 'Organizations',
+  ORGANIZATION_MODE: 'flat',
   ORGANIZATION_FOLDERS_NAME: 'Folders',
   ORGANIZATION_COLLECTIONS_NAME: 'Collections',
 } as const;
@@ -63,6 +64,10 @@ export async function executeBackup() {
   const organizationsRootName =
     process.env['ORGANIZATIONS_GROUP_NAME'] || DEFAULTS.ORGANIZATIONS_GROUP_NAME;
 
+  const organizationMode =
+    (process.env['ORGANIZATION_MODE'] || DEFAULTS.ORGANIZATION_MODE).toLowerCase() === 'nested'
+      ? 'nested'
+      : 'flat';
   const organizationsFoldersName =
     process.env['ORGANIZATION_FOLDERS_NAME'] || DEFAULTS.ORGANIZATION_FOLDERS_NAME;
   const organizationsCollectionsName =
@@ -81,6 +86,7 @@ export async function executeBackup() {
     name: keepassDatabaseName,
     keyFile: backupKeyFile,
     password: backupPassword,
+    organizationMode,
     organizationFolderNames: {
       organizations: organizationsRootName,
       collections: organizationsCollectionsName,

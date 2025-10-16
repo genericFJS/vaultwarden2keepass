@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Organizations now have a keepass group for folders and collections; in these groups the folders and collections are created as keepass groups.
   - This resembles the structure how it is presented in vaultwarden.
 
+### Added
+
+- Option to save organization items nested with subgroups for folders/collections or flat without duplicate entries.
+
 ### Fixed
 
 - Organization items appearing in the folders outside of the organization.
